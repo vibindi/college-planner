@@ -16,8 +16,6 @@ create table semesters (
   user_id integer not null,
   season text not null,
   year integer not null,
-  start_date text not null,
-  end_date text not null,
   foreign key(user_id) references users(user_id)
 );
 
