@@ -1,10 +1,58 @@
-import sqlite3
+from flask_sqlalchemy import SQLAlchemy
 from flask import Flask, render_template, request, url_for, flash, redirect
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'df2bdc83df6c3edba5d094802ecc1844cedd30579009f36e'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///main.db'
 
 current_user = None
+
+db = SQLAlchemy(app)
+
+class Users(db.Model):
+  user_id = db.Column(db.Integer, primary_key=True)
+  name = db.Column(db.String(200), nullable=False)
+  email = db.Column(db.String(200), nullable=False)
+  curr_semester_id = db.Column(db.Integer, nullable=False)
+
+class Semesters(db.Model):
+  semester_id = db.Column(db.Integer, primary_key=True)
+  user_id = db.Column(db.Integer, nullable=False)
+  season = db.Column(db.String(200), nullable=False)
+  year = db.Column(db.Integer, nullable=False)
+  
+class Courses(db.Model):
+  course_id = db.Column(db.Integer, primary_key=True)
+  user_id = db.Column(db.Integer, nullable=False)
+  semester_id = db.Column(db.Integer, nullable=False)
+  course_prefix = db.Column(db.String(200), nullable=False)
+  course_number = db.Column(db.String(200), nullable=False)
+  course_name = db.Column(db.String(200), nullable=False)
+  num_credits = db.Column(db.Integer, nullable=False)
+
+class Assignments(db.Model):
+  assignment_id = db.Column(db.Integer, primary_key=True)
+  user_id = db.Column(db.Integer, nullable=False)
+  course_id = db.Column(db.Integer, nullable=False)
+  name = db.Column(db.String(200), nullable=False)
+  description = db.Column(db.String(200), nullable=False)
+  due_date = db.Column(db.DateTime, nullable=False)
+  is_completed = db.Column(db.Integer, nullable=False)
+  completed_date = db.Column(db.DateTime, nullable=False)
+
+class Exams(db.Model):
+  exam_id = db.Column(db.Integer, primary_key=True)
+  user_id = db.Column(db.Integer, nullable=False)
+  course_id = db.Column(db.Integer, nullable=False)
+  name = db.Column(db.String(200), nullable=False)
+  exam_date = db.Column(db.DateTime, nullable=False)
+  exam_location = db.Column(db.String(200), nullable=False)
+
+with app.app_context():
+  db.create_all()
+  db.session.commit()
+
+  #print(Users.query.all())
 
 ### ROUTES ###
 
@@ -14,7 +62,9 @@ def home():
 
   if not current_user:
     return render_template('signin.html')
-  return render_template('index.html', name=current_user, email=current_user)
+  
+  user = Users.query.filter_by(email=current_user).first()
+  return render_template('index.html', name=user.name, email=current_user)
 
 @app.route('/sign_in', methods=['POST'])
 def sign_in():
@@ -24,11 +74,10 @@ def sign_in():
   current_user = email
   
   # check if email is in database, if so redirect('/')
-  conn = db_conn()
-  users = conn.execute(f'select * from users where email = "{email}"').fetchall()
-  conn.close()
+  user = Users.query.filter_by(email=email).first()
+  print(user)
 
-  if users:
+  if user:
     return redirect('/')
 
   return redirect('/create_account')
@@ -45,29 +94,24 @@ def sign_up():
   sem_season = request.form['semester-season']
   sem_year =  request.form['semester-year']
 
-  conn = db_conn()
-
   # insert user
-  conn.execute(f'insert into users (name, email, curr_semester_id) values (?, ?, ?)', (name, current_user, -1))
-  conn.commit()
+  db.session.add(Users(name=name, email=current_user, curr_semester_id=-1))
+  db.session.commit()
 
   # get user id
-  user_id = conn.execute(f'select user_id from users where email = "{current_user}"').fetchall()[0]['user_id']
-  conn.commit()
+  user = Users.query.filter_by(email=current_user).first()
+  user_id = user.user_id
 
   # insert semester
-  conn.execute(f'insert into semesters (user_id, season, year) values (?, ?, ?)', (user_id, sem_season, sem_year))
-  conn.commit()
+  db.session.add(Semesters(user_id=user_id, season=sem_season, year=sem_year))
+  db.session.commit()
 
   # get semester id
-  semester_id = conn.execute(f'select semester_id from semesters where user_id = "{user_id}" and season = "{sem_season}" and year = "{sem_year}"').fetchall()[0]['semester_id']
-  conn.commit()
+  semester_id = Semesters.query.filter_by(user_id=user_id, season=sem_season, year=sem_year).first().semester_id
 
   # update user
-  conn.execute(f'update users set curr_semester_id = "{semester_id}" where user_id = "{user_id}"')
-  conn.commit()
-  
-  conn.close()
+  user.curr_semester_id = semester_id
+  db.session.commit()
 
   return redirect('/')
 
@@ -84,22 +128,13 @@ def delete_account():
   global current_user
 
   # delete user and all user related info from database
-  conn = db_conn()
-  conn.execute(f'delete from users where email = "{current_user}"')
-  conn.commit()
-  conn.close()
+  user = Users.query.filter_by(email=current_user).first()
+  db.session.delete(user)
+  db.session.commit()
 
   current_user = None
 
   return redirect('/')
-
-
-### DB CONNECTIONS ###
-
-def db_conn():
-    conn = sqlite3.connect('college-planner.db')
-    conn.row_factory = sqlite3.Row
-    return conn
 
 
 if __name__ == '__main__':

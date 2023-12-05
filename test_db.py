@@ -1,6 +1,6 @@
 import sqlite3
 
-conn = sqlite3.connect('college-planner.db')
+conn = sqlite3.connect('sqlite://main.db')
 
 cur = conn.cursor()
 
