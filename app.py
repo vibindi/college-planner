@@ -112,6 +112,55 @@ def settings():
   return render_template('settings.html', sem_name=f"{semester.season} {semester.year}", all_sems=all_semesters, courses=courses)
 
 
+@app.route('/report')
+def report():
+  global current_user
+
+  user = Users.query.filter_by(email=current_user).first()
+
+  semesters = []
+  for s in Semesters.query.filter_by(user_id=user.user_id).all():
+    courses = []
+  
+    for c in Courses.query.filter_by(semester_id=s.semester_id).all():
+      assignments = []
+      exams = []
+
+      for a in Assignments.query.filter_by(course_id=c.course_id).all():
+        if a.is_completed == 0:
+          assignments.append({
+            'id': a.assignment_id,
+            'name': a.name,
+            'description': a.description,
+            'due_date': a.due_date
+          })
+
+      for e in Exams.query.filter_by(course_id=c.course_id).all():
+        exams.append({
+          'id': e.exam_id,
+          'name': e.name,
+          'exam_date': e.exam_date,
+          'location': e.exam_location
+        })
+
+      courses.append({
+        'id': c.course_id, 
+        'prefix': c.course_prefix, 
+        'number': c.course_number, 
+        'name': c.course_name,
+        'assignments': assignments,
+        'exams': exams
+      })
+    
+    semesters.append({
+      'id': s.semester_id,
+      'season': s.season,
+      'year': s.year,
+      'name': f"{s.season} {s.year}"
+    })
+
+  return render_template('report.html', semesters=semesters)
+
 ## FORM ROUTES ##
 
 @app.route('/sign_in', methods=['POST'])
@@ -173,9 +222,18 @@ def delete_account():
   # delete user and all user related info from database
   user = Users.query.filter_by(email=current_user).first()
   semesters = Semesters.query.filter_by(user_id=user.user_id).all()
+
   db.session.delete(user)
   for semester in semesters:
+    for course in Courses.query.filter_by(semester_id=semester.semester_id).all():
+      for assignment in Assignments.query.filter_by(course_id=course.course_id).all():
+        db.session.delete(assignment)
+      for exam in Exams.query.filter_by(course_id=course.course_id).all():
+        db.session.delete(exam)
+      db.session.delete(course)
     db.session.delete(semester)
+
+
   db.session.commit()
 
   current_user = None
@@ -229,6 +287,10 @@ def add_course():
 def delete_course():
   course_id = request.form['course-id']
   course = Courses.query.filter_by(course_id=course_id).first()
+  for assignment in Assignments.query.filter_by(course_id=course.course_id).all():
+    db.session.delete(assignment)
+  for exam in Exams.query.filter_by(course_id=course.course_id).all():
+    db.session.delete(exam)
   db.session.delete(course)
   db.session.commit()
   return redirect('/settings')
@@ -295,6 +357,19 @@ def delete_exam():
   db.session.commit()
 
   return redirect("/")
+
+@app.route("/generate-report", methods=['POST'])
+def generate_report():
+
+  semester_dropdown = int(request.form['semester-dropdown'])
+
+  if semester_dropdown == -1:
+    print("All Semesters")
+  else:
+    semester = Semesters.query.filter_by(semester_id=semester_dropdown).first()
+    print(f"{semester.season} {semester.year}")
+  
+  return redirect('/report')
 
 if __name__ == '__main__':
   app.run(host='0.0.0.0', port=3000, debug=True)

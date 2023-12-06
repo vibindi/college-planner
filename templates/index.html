@@ -12,6 +12,9 @@
       <form style="margin-right: 1%;" class="form-inline" action="sign_out" method="post">
         <button class="btn btn-outline-primary my-2 my-sm-0" type="submit">Log Out</button>
       </form>
+      <form style="margin-right: 1%;" class="form-inline" action="{{ url_for('report') }}">
+        <button class="btn btn-outline-primary my-2 my-sm-0" type="submit">Report</button>
+      </form>
       <form style="margin-right: 10%;" class="form-inline" action="{{ url_for('settings') }}">
         <button class="btn btn-outline-primary my-2 my-sm-0" type="submit">Settings</button>
       </form>
