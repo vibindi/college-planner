@@ -10,15 +10,147 @@
     <nav class="navbar navbar-expand-lg navbar-light bg-light">
       <a style="margin-left: 10%; margin-right: 40%;" class="navbar-brand">{{name}}, {{email}}</a>
       <form style="margin-right: 1%;" class="form-inline" action="sign_out" method="post">
-        <button class="btn btn-outline-danger my-2 my-sm-0" type="submit">Log Out</button>
+        <button class="btn btn-outline-primary my-2 my-sm-0" type="submit">Log Out</button>
       </form>
-      <form style="margin-right: 10%;" class="form-inline" action="delete_account" method="post">
-        <button class="btn btn-outline-danger my-2 my-sm-0" type="submit">Delete Account</button>
+      <form style="margin-right: 10%;" class="form-inline" action="{{ url_for('settings') }}">
+        <button class="btn btn-outline-primary my-2 my-sm-0" type="submit">Settings</button>
       </form>
     </nav>
 
     <div class="px-4 py-5 mx-5 my-5 text-center">
-      Hello!
+      <h3>{{sem_name}}</h3>
+      <button type="button" class="btn btn-outline-secondary my-2 my-sm-0" data-bs-toggle="modal" data-bs-target="#assignmentModal">
+        New Assignment
+      </button>
+
+      <!-- Modal -->
+      <div class="modal fade" id="assignmentModal" tabindex="-1" role="dialog" aria-labelledby="assignmentModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="assignmentModalLabel">Assignment</h5>
+            </div>
+            <div class="modal-body">
+              <form class="form-inline" action="add-assignment" method="post">
+                <div class="form-group">
+                  <label>Choose Course</label><br>
+                  {%for course in courses%}
+                    <label><input type="radio" name="assignment-course" value="{{course['id']}}" checked/> {{course['prefix']}} {{course['number']}}</label>
+                    <br>
+                  {%endfor%}
+                </div>
+                <br>
+                <div class="form-group">
+                  <label>Assignment Name <input type="text" name="assignment-name" id="assignment-name" class="form-control" required/></label>
+                </div>
+                <br>
+                <div class="form-group">
+                  <label>Assignment Description <textarea name="assignment-description" id="assignment-description" class="form-control" required></textarea></label>
+                </div>
+                <br>
+                <div class="form-group">
+                  <label>Assignment Due Date <input type="datetime-local" name="assignment-due-date" id="assignment-due-date" class="form-control" required/></label>
+                </div>
+                <br>
+                <button class="btn btn-outline-primary my-2 my-sm-0" type="submit">Add Assignment</button>
+              </form>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button type="button" class="btn btn-outline-secondary my-2 my-sm-0" data-bs-toggle="modal" data-bs-target="#examModal">
+        New Exam
+      </button>
+
+      <div class="modal fade" id="examModal" tabindex="-1" role="dialog" aria-labelledby="examModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="examModalLabel">Exam</h5>
+            </div>
+            <div class="modal-body">
+              <form class="form-inline" action="add-exam" method="post">
+                <div class="form-group">
+                  <label>Choose Course</label><br>
+                  {%for course in courses%}
+                    <label><input type="radio" name="exam-course" value="{{course['id']}}" checked/> {{course['prefix']}} {{course['number']}}</label>
+                    <br>
+                  {%endfor%}
+                </div>
+                <br>
+                <div class="form-group">
+                  <label>Exam Name <input type="text" name="exam-name" id="exam-name" class="form-control" required/></label>
+                </div>
+                <br>
+                <div class="form-group">
+                  <label>Exam Date <input type="datetime-local" name="exam-date" id="exam-date" class="form-control" required/></label>
+                </div>
+                <br>
+                <div class="form-group">
+                  <label>Exam Location <input type="text" name="exam-location" id="exam-location" class="form-control" required/></label>
+                </div>
+                <br>
+                <button class="btn btn-outline-primary my-2 my-sm-0" type="submit">Add Assignment</button>
+              </form>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="container">
+        <div class="col" style="display: inline-block; align-items: center;">
+          {%for course in courses%}
+            <div class="card" style="width: 75rem; margin: 1rem;">
+              <div class="card-body">
+                <h4 class="card-title">{{course['prefix']}} {{course['number']}}</h5>
+                <h5 class="card-subtitle mb-2 text-muted">{{course['name']}}</h6>
+
+                <p class="card-text" style="text-align: left; margin-left: 5%;"><strong>Assignments</strong></p>
+                {%for a in course['assignments']%}
+                  <div style="border: 1px solid black; padding-top: 10px; padding-bottom: 10px;">
+                    <h6><strong>{{a.name}}</strong></h6>
+                    <p><em>Due: {{a.due_date}}</em></p>
+                    <p>{{a.description}}</p>
+                    <form class="form-inline" action="delete-assignment" method="post">
+                      <input type="hidden" name="assignment-id" value="{{a.id}}">
+                      <button class="btn btn-outline-danger my-2 my-sm-0" type="submit">Delete Assignment</button>
+                    </form>
+                    <br>
+                    <form class="form-inline" action="complete-assignment" method="post">
+                      <input type="hidden" name="assignment-id" value="{{a.id}}">
+                      <button class="btn btn-outline-success my-2 my-sm-0" type="submit">Complete Assignment</button>
+                    </form>
+                  </div>
+                  
+                  <br>
+                {%endfor%}
+
+                <p class="card-text" style="text-align: left; margin-left: 5%;"><strong>Exams</strong></p>
+                {%for e in course['exams']%}
+                  <div style="border: 1px solid black; padding-top: 10px; padding-bottom: 10px;">
+                    <h6><strong>{{e.name}}</strong></h6>
+                    <p><em>Due: {{e.exam_date}}</em></p>
+                    <p>{{e.location}}</p>
+                    <form class="form-inline" action="delete-exam" method="post">
+                      <input type="hidden" name="exam-id" value="{{e.id}}">
+                      <button class="btn btn-outline-danger my-2 my-sm-0" type="submit">Delete Exam</button>
+                    </form>
+                  </div>
+                  
+                  <br>
+                {%endfor%}
+              </div>
+            </div>
+          {%endfor%}
+        </div>
+      </div>
     </div>
 
     

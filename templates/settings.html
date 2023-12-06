@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings</title>
+    <!--<link rel="stylesheet" href="{{url_for('static', filename='css/settings.css')}}">-->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+  </head>
+  <body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+      <a style="margin-left: 10%; margin-right: 60%;" class="navbar-brand">Settings</a>
+      <form style="margin-right: 1%;" class="form-inline" action="{{ url_for('home') }}">
+        <button class="btn btn-outline-primary my-2 my-sm-0" type="submit">Home</button>
+      </form>
+    </nav>
+    <div class="px-4 py-5 mx-5 my-5 text-center">
+      <!-- Semesters -->
+      <h3>Semesters</h3>
+      <p>{{sem_name}}</p>
+      
+      <button type="button" class="btn btn-outline-secondary my-2 my-sm-0" data-bs-toggle="modal" data-bs-target="#semesterModal">
+        Change Semester
+      </button>
+
+      <!-- Modal -->
+      <div class="modal fade" id="semesterModal" tabindex="-1" role="dialog" aria-labelledby="semesterModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="semesterModalLabel">Semesters</h5>
+            </div>
+            <div class="modal-body">
+              <form class="form-inline" action="change-semester" method="post">
+                <div class="form-group">
+                  {%for sem in all_sems%}
+                    {% if sem == sem_name %}
+                      <label><input type="radio" name="active_semester" value="{{sem}}" checked/> {{sem}}</label>
+                    {% else %}
+                      <label><input type="radio" name="active_semester" value="{{sem}}"/> {{sem}}</label>
+                    {% endif %}
+                    <br>
+                  {%endfor%}
+                </div>
+                <br>
+                <button class="btn btn-outline-primary my-2 my-sm-0" type="submit">Change Semester</button>
+              </form>
+              
+              <hr>
+
+              <form class="form-inline" action="add-semester" method="post">
+                <div class="form-group">
+                  <label for="semester-season">Semester Season</label>
+                  <select id="semester-season" name="semester-season" class="form-control" required>
+                    <option value="Fall">Fall</option>
+                    <option value="Winter">Winter</option>
+                    <option value="Spring">Spring</option>
+                    <option value="Summer">Summer</option>
+                  </select>
+                </div>
+                <br>
+                <div class="form-group">
+                  <label>Semester Year <input type="number" name="semester-year" id="semester-year" class="form-control" required/></label>
+                </div>
+                <br>
+                <button class="btn btn-outline-primary my-2 my-sm-0" type="submit">Add and Change Semester</button>
+              </form>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <hr>
+      
+      <!-- Courses -->
+      <h3>Courses</h3>
+      <div class="container">
+        <div class="row">
+          {%for course in courses%}
+            <div class="card" style="width: 18rem; margin: 1rem;">
+              <div class="card-body">
+                <h5 class="card-title">{{course['prefix']}} {{course['number']}}</h5>
+                <h6 class="card-subtitle mb-2 text-muted">{{course['name']}}</h6>
+                <!--<p class="card-text">Some quick example text to build on the card title and make up the bulk of the card's content.</p>-->
+                <form class="form-inline" action="delete-course" method="post">
+                  <input type="hidden" id="course_{{course['id']}}" name="course-id" value="{{course['id']}}">
+                  <button class="btn btn-outline-danger my-2 my-sm-0" type="submit">Delete Course</button>
+                </form>
+              </div>
+            </div>
+          {%endfor%}
+        </div>
+      </div>
+
+      <br>
+
+      <button type="button" class="btn btn-outline-secondary my-2 my-sm-0" data-bs-toggle="modal" data-bs-target="#courseModal">
+        Add Course
+      </button>
+
+      <!-- Modal -->
+      <div class="modal fade" id="courseModal" tabindex="-1" role="dialog" aria-labelledby="courseModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="courseModalLabel">Courses</h5>
+            </div>
+            <div class="modal-body">
+              <form class="form-inline" action="add-course" method="post">
+                <div class="form-group">
+                  <label>Course Prefix <input type="text" name="course-prefix" id="course-prefix" class="form-control" required/></label>
+                </div>
+                <br>
+                <div class="form-group">
+                  <label>Course Number <input type="number" name="course-number" id="course-number" class="form-control" required/></label>
+                </div>
+                <br>
+                <div class="form-group">
+                  <label>Course Name <input type="text" name="course-name" id="course-name" class="form-control" required/></label>
+                </div>
+                <br>
+                <button class="btn btn-outline-primary my-2 my-sm-0" type="submit">Add Course</button>
+              </form>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <hr>
+      <!-- Delete Account -->
+      <h3>Delete Account</h3>
+      <form class="form-inline" action="delete_account" method="post">
+        <button class="btn btn-outline-danger my-2 my-sm-0" type="submit">Delete Account</button>
+      </form>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+  </body>
+</html>
