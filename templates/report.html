@@ -13,37 +13,42 @@
         <button class="btn btn-outline-primary my-2 my-sm-0" type="submit">Home</button>
       </form>
     </nav>
-    <nav class="navbar navbar-expand-lg navbar-light bg-light">
-      <form style="margin-left: 30%;" class="form-inline" action="generate-report" method="post">
-        <div class="form-group">
-          <div class="dropdown">
-              <button class="btn btn-secondary dropdown-toggle" type="button" id="semesterDropDown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                  All Semesters
-              </button>
-              <div class="dropdown-menu" id="semester-dropdown-menu" aria-labelledby="semesterDropDown">
-                  <a class="dropdown-item" href="#" data-value="-1">All Semesters</a>
-                  {%for s in semesters%}
-                    <a class="dropdown-item" href="#" data-value="{{s.id}}">{{s.name}}</a>
-                  {%endfor%}
-              </div>
-              <input type="hidden" name="semester-dropdown" id="semester-dropdown" value="-1">
-          </div>
-          <br>
-          <!--<div class="dropdown">
-            <button class="btn btn-secondary dropdown-toggle" type="button" id="courseDropDown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                All Courses
-            </button>
-            <div class="dropdown-menu" id="course-dropdown-menu" aria-labelledby="courseDropDown">
-                {%for s in semesters%}
-                  <a class="dropdown-item" href="#">{{s.name}}</a>
-                {%endfor%}
+    <div style="width: 100%; text-align: center;">
+      <nav class="navbar navbar-expand-lg navbar-light" style="margin-top: 10%; margin-left: 15%;">
+        <form style="margin-left: 20%;" class="form-inline" action="generate-report" method="post">
+          <div class="form-group">
+            <div class="dropdown">
+                <button class="btn btn-secondary dropdown-toggle" type="button" id="semesterDropDown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    All Semesters
+                </button>
+                <div class="dropdown-menu" id="semester-dropdown-menu" aria-labelledby="semesterDropDown">
+                    <a class="dropdown-item" href="#" data-value="-1">All Semesters</a>
+                    {%for s in semesters%}
+                      <a class="dropdown-item" href="#" data-value="{{s.id}}">{{s.name}}</a>
+                    {%endfor%}
+                </div>
+                <input type="hidden" name="semester-dropdown" id="semester-dropdown" value="-1">
             </div>
-          </div>-->
-          <button class="btn btn-outline-primary my-2 my-sm-0" type="submit">Generate Report</button>
-        </div>
-      </form>
-    </nav>
-
+            <br>
+            <div class="dropdown">
+              <button class="btn btn-secondary dropdown-toggle" type="button" id="courseDropDown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                  All Courses
+              </button>
+              <div class="dropdown-menu" id="course-dropdown-menu" aria-labelledby="courseDropDown">
+                <a class="dropdown-item" href="#" data-value="-1">All Courses</a>
+              </div>
+              <input type="hidden" name="course-dropdown" id="course-dropdown" value="-1">
+            </div>
+            <br><br>
+            <label>Start Date <input type="date" name="start-date" id="start-date"></label>
+            <br>
+            <label>End Date <input type="date" name="end-date" id="end-date"></label>
+            <br><br>
+            <button class="btn btn-outline-primary my-2 my-sm-0" type="submit">Generate Report</button>
+          </div>
+        </form>
+      </nav>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
@@ -54,6 +59,38 @@
         var selectedVal = $(this).data('value');
         $('#semesterDropDown').text(selectedText);
         $('#semester-dropdown').val(selectedVal);
+
+        if (selectedVal !== -1) {
+          // update course selection
+          semesters = JSON.parse("{{semesters}}".replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/'/g, '"'));
+          for (const semester of semesters) {
+            if (semester.id == selectedVal) {
+
+              menu = `
+                <a class="dropdown-item" href="#" data-value="-1">All Courses</a>
+              `;
+
+              for (const course of semester.courses) {
+                menu += `<a class="dropdown-item" href="#" data-value="${course.id}">${course.name}</a>`
+              }
+
+              $("#course-dropdown-menu").html(menu);
+              break;
+            }
+          }
+        } else {
+          menu = `
+            <a class="dropdown-item" href="#" data-value="-1">All Courses</a>
+          `;
+          $("#course-dropdown-menu").html(menu);
+        }
+      })
+
+      $('#course-dropdown-menu').on('click', 'a', function() {
+        var selectedText = $(this).text();
+        var selectedVal = $(this).data('value');
+        $('#courseDropDown').text(selectedText);
+        $('#course-dropdown').val(selectedVal);
       })
     </script>
   </body>

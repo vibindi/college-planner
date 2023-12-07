@@ -1,4 +1,6 @@
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
+import sqlite3
 from flask import Flask, render_template, request, url_for, flash, redirect
 from datetime import datetime
 
@@ -131,15 +133,13 @@ def report():
           assignments.append({
             'id': a.assignment_id,
             'name': a.name,
-            'description': a.description,
-            'due_date': a.due_date
+            'description': a.description
           })
 
       for e in Exams.query.filter_by(course_id=c.course_id).all():
         exams.append({
           'id': e.exam_id,
           'name': e.name,
-          'exam_date': e.exam_date,
           'location': e.exam_location
         })
 
@@ -156,7 +156,8 @@ def report():
       'id': s.semester_id,
       'season': s.season,
       'year': s.year,
-      'name': f"{s.season} {s.year}"
+      'name': f"{s.season} {s.year}",
+      'courses': courses
     })
 
   return render_template('report.html', semesters=semesters)
@@ -362,14 +363,375 @@ def delete_exam():
 def generate_report():
 
   semester_dropdown = int(request.form['semester-dropdown'])
+  course_dropdown = int(request.form['course-dropdown'])
+
+  start_date = request.form['start-date']
+  if start_date:
+    start_date = start_date.split("T")
+    day = start_date[0].split("-")
+    start_date = datetime(int(day[0]), int(day[1]), int(day[2]))
+
+  end_date = request.form['end-date']
+  if end_date:
+    end_date = end_date.split("T")
+    day = end_date[0].split("-")
+    end_date = datetime(int(day[0]), int(day[1]), int(day[2]))
+
+
+  # catch all errors in input
+  if start_date and end_date and start_date > end_date:
+    return redirect('/report')
+
+  title = ""
 
   if semester_dropdown == -1:
-    print("All Semesters")
+    title += "All Semesters"
   else:
-    semester = Semesters.query.filter_by(semester_id=semester_dropdown).first()
-    print(f"{semester.season} {semester.year}")
+    query = text(f"""
+      SELECT season || " " || year
+      FROM Semesters
+      WHERE semester_id = {semester_dropdown}
+    """)
+    title += f"{db.session.execute(query).fetchone()[0]}"
+
+  if course_dropdown == -1:
+    title += ", All Courses"
+  else:
+    query = text(f"""
+      SELECT course_prefix || " " || course_number || " (" || course_name || ")"
+      FROM Courses
+      WHERE course_id = {course_dropdown}
+    """)
+    title += f", {db.session.execute(query).fetchone()[0]}"
+
+  if start_date and not end_date:
+    title += f", On or After {start_date.strftime('%m-%d-%y')}"
+  elif end_date and not start_date:
+    title += f", On or Before {end_date.strftime('%m-%d-%y')}"
+  elif start_date and end_date:
+    if start_date == end_date:
+      title += f", On {start_date.strftime('%m-%d-%y')}"
+    else:
+      title += f", Between {start_date.strftime('%m-%d-%y')} and {end_date.strftime('%m-%d-%y')}"
+
+  assignment_date_condition = ""
+  if start_date and end_date:
+    if start_date == end_date:
+      assignment_date_condition += f"a.completed_date = '{start_date}'"
+    else:
+      assignment_date_condition += f"a.completed_date >= '{start_date}' AND a.completed_date <= '{end_date}'"
+  elif start_date and not end_date:
+    assignment_date_condition += f"a.completed_date >= '{start_date}'"
+  elif end_date and not start_date:
+    assignment_date_condition += f"a.completed_date <= '{end_date}'"
+
+
+  all_reports = []
   
-  return redirect('/report')
+  if semester_dropdown == -1 and course_dropdown == -1:
+    all_reports.append(semester_num_classes())
+    all_reports.append(semester_num_assignments())
+    all_reports.append(semester_num_incomplete())
+    all_reports.append(semester_num_complete())
+    all_reports.append(semester_num_exams())
+
+    if start_date or end_date:
+      all_reports.append(semester_num_complete_date(assignment_date_condition))
+  elif semester_dropdown != -1 and course_dropdown == -1:
+    all_reports.append(sem_class_num_assignments(semester_dropdown))
+    all_reports.append(sem_class_num_incomplete(semester_dropdown))
+    all_reports.append(sem_class_num_complete(semester_dropdown))
+    all_reports.append(sem_class_num_exams(semester_dropdown))
+  else:
+    pass
+
+  return render_template('generated.html', title=title, all_reports=all_reports)
+
+### QUERY FUNCTIONS ###
+
+
+### ALL SEMS & ALL CLASSES
+
+def semester_num_classes():
+  report_query = text(f"""
+    SELECT s.season || ' ' || s.year AS semester, count(*) AS number_of_classes
+    FROM Users u
+    JOIN Semesters s
+    ON u.user_id = s.user_id
+    JOIN Courses c
+    ON c.semester_id = s.semester_id     
+    WHERE u.email = "{current_user}"
+    GROUP BY s.semester_id
+    ;
+  """)
+  return execute_query(report_query)
+
+def semester_num_assignments():
+  report_query = text(f"""
+    WITH valid_sems AS (SELECT s.season || ' ' || s.year AS semester, count(*) AS number_of_assignments
+                        FROM Users u
+                        JOIN Semesters s
+                        ON u.user_id = s.user_id
+                        JOIN Courses c
+                        ON c.semester_id = s.semester_id
+                        JOIN Assignments a
+                        ON a.course_id = c.course_id     
+                        WHERE u.email = "{current_user}"
+                        GROUP BY s.semester_id)
+
+    SELECT *
+    FROM valid_sems
+
+    UNION
+    
+    SELECT s.season || ' ' || s.year AS semester, 0 AS number_of_assignments
+    FROM Users u
+    JOIN Semesters s
+    ON u.user_id = s.user_id
+    WHERE semester NOT IN (SELECT semester FROM valid_sems)
+
+    ;
+  """)
+  return execute_query(report_query)
+
+def semester_num_incomplete():
+  report_query = text(f"""
+    WITH valid_sems AS (SELECT s.season || ' ' || s.year AS semester, count(*) AS number_of_incomplete_assignments
+                        FROM Users u
+                        JOIN Semesters s
+                        ON u.user_id = s.user_id
+                        JOIN Courses c
+                        ON c.semester_id = s.semester_id
+                        JOIN Assignments a
+                        ON a.course_id = c.course_id     
+                        WHERE u.email = "{current_user}" and a.is_completed = 0
+                        GROUP BY s.semester_id)
+
+    SELECT *
+    FROM valid_sems
+
+    UNION
+    
+    SELECT s.season || ' ' || s.year AS semester, 0 AS number_of_incomplete_assignments
+    FROM Users u
+    JOIN Semesters s
+    ON u.user_id = s.user_id
+    WHERE semester NOT IN (SELECT semester FROM valid_sems)
+
+    ;
+  """)
+  return execute_query(report_query)
+
+def semester_num_complete():
+  report_query = text(f"""
+    WITH valid_sems AS (SELECT s.season || ' ' || s.year AS semester, count(*) AS number_of_complete_assignments
+                        FROM Users u
+                        JOIN Semesters s
+                        ON u.user_id = s.user_id
+                        JOIN Courses c
+                        ON c.semester_id = s.semester_id
+                        JOIN Assignments a
+                        ON a.course_id = c.course_id     
+                        WHERE u.email = "{current_user}" and a.is_completed = 1
+                        GROUP BY s.semester_id)
+
+    SELECT *
+    FROM valid_sems
+
+    UNION
+    
+    SELECT s.season || ' ' || s.year AS semester, 0 AS number_of_complete_assignments
+    FROM Users u
+    JOIN Semesters s
+    ON u.user_id = s.user_id
+    WHERE semester NOT IN (SELECT semester FROM valid_sems)
+
+    ;
+  """)
+  return execute_query(report_query)
+
+def semester_num_exams():
+  report_query = text(f"""
+    WITH valid_sems AS (SELECT s.season || ' ' || s.year AS semester, count(*) AS number_of_exams
+                        FROM Users u
+                        JOIN Semesters s
+                        ON u.user_id = s.user_id
+                        JOIN Courses c
+                        ON c.semester_id = s.semester_id
+                        JOIN Exams e
+                        ON e.course_id = c.course_id     
+                        WHERE u.email = "{current_user}"
+                        GROUP BY s.semester_id)
+
+    SELECT *
+    FROM valid_sems
+
+    UNION
+    
+    SELECT s.season || ' ' || s.year AS semester, 0 AS number_of_exams
+    FROM Users u
+    JOIN Semesters s
+    ON u.user_id = s.user_id
+    WHERE semester NOT IN (SELECT semester FROM valid_sems)
+
+    ;
+  """)
+  return execute_query(report_query)
+
+def semester_num_complete_date(date_condition):
+  report_query = text(f"""
+    WITH valid_sems AS (SELECT s.season || ' ' || s.year AS semester, count(*) AS number_of_complete_assignments_in_date_range
+                        FROM Users u
+                        JOIN Semesters s
+                        ON u.user_id = s.user_id
+                        JOIN Courses c
+                        ON c.semester_id = s.semester_id
+                        JOIN Assignments a
+                        ON a.course_id = c.course_id     
+                        WHERE u.email = "{current_user}" and a.is_completed = 1 and {date_condition}
+                        GROUP BY s.semester_id)
+
+    SELECT *
+    FROM valid_sems
+
+    UNION
+    
+    SELECT s.season || ' ' || s.year AS semester, 0 AS number_of_complete_assignments_in_date_range
+    FROM Users u
+    JOIN Semesters s
+    ON u.user_id = s.user_id
+    WHERE semester NOT IN (SELECT semester FROM valid_sems)
+
+    ;
+  """)
+  return execute_query(report_query)
+
+### SEM & ALL CLASSES
+def sem_class_num_assignments(sem):
+  report_query = text(f"""
+    WITH valid_sems AS (SELECT c.course_prefix || ' ' || c.course_number AS course, count(*) AS number_of_assignments
+                        FROM Users u
+                        JOIN Semesters s
+                        ON u.user_id = s.user_id
+                        JOIN Courses c
+                        ON c.semester_id = s.semester_id
+                        JOIN Assignments a
+                        ON a.course_id = c.course_id     
+                        WHERE u.email = "{current_user}" and s.semester_id = {sem}
+                        GROUP BY c.course_id)
+
+    SELECT *
+    FROM valid_sems
+
+    UNION
+    
+    SELECT c.course_prefix || ' ' || c.course_number AS course, 0 AS number_of_assignments
+    FROM Users u
+    JOIN Semesters s
+    ON u.user_id = s.user_id
+    JOIN Courses c
+    ON c.semester_id = s.semester_id
+    WHERE course NOT IN (SELECT course FROM valid_sems) and s.semester_id = {sem}
+
+    ;
+  """)
+  return execute_query(report_query)
+
+def sem_class_num_incomplete(sem):
+  report_query = text(f"""
+    WITH valid_sems AS (SELECT c.course_prefix || ' ' || c.course_number AS course, count(*) AS number_of_incomplete_assignments
+                        FROM Users u
+                        JOIN Semesters s
+                        ON u.user_id = s.user_id
+                        JOIN Courses c
+                        ON c.semester_id = s.semester_id
+                        JOIN Assignments a
+                        ON a.course_id = c.course_id     
+                        WHERE u.email = "{current_user}" and a.is_completed = 0 and s.semester_id = {sem}
+                        GROUP BY s.semester_id)
+
+    SELECT *
+    FROM valid_sems
+
+    UNION
+    
+    SELECT c.course_prefix || ' ' || c.course_number AS course, 0 AS number_of_incomplete_assignments
+    FROM Users u
+    JOIN Semesters s
+    ON u.user_id = s.user_id
+    JOIN Courses c
+    ON c.semester_id = s.semester_id
+    WHERE course NOT IN (SELECT course FROM valid_sems) and s.semester_id = {sem}
+
+    ;
+  """)
+  return execute_query(report_query)
+
+def sem_class_num_complete(sem):
+  report_query = text(f"""
+    WITH valid_sems AS (SELECT c.course_prefix || ' ' || c.course_number AS course, count(*) AS number_of_complete_assignments
+                        FROM Users u
+                        JOIN Semesters s
+                        ON u.user_id = s.user_id
+                        JOIN Courses c
+                        ON c.semester_id = s.semester_id
+                        JOIN Assignments a
+                        ON a.course_id = c.course_id     
+                        WHERE u.email = "{current_user}" and a.is_completed = 1 and s.semester_id = {sem}
+                        GROUP BY s.semester_id)
+
+    SELECT *
+    FROM valid_sems
+
+    UNION
+    
+    SELECT c.course_prefix || ' ' || c.course_number AS course, 0 AS number_of_complete_assignments
+    FROM Users u
+    JOIN Semesters s
+    ON u.user_id = s.user_id
+    JOIN Courses c
+    ON c.semester_id = s.semester_id
+    WHERE course NOT IN (SELECT course FROM valid_sems) and s.semester_id = {sem}
+
+    ;
+  """)
+  return execute_query(report_query)
+
+def sem_class_num_exams(sem):
+  report_query = text(f"""
+    WITH valid_sems AS (SELECT c.course_prefix || ' ' || c.course_number AS course, count(*) AS number_of_exams
+                        FROM Users u
+                        JOIN Semesters s
+                        ON u.user_id = s.user_id
+                        JOIN Courses c
+                        ON c.semester_id = s.semester_id
+                        JOIN Exams e
+                        ON e.course_id = c.course_id     
+                        WHERE u.email = "{current_user}" and s.semester_id = {sem}
+                        GROUP BY s.semester_id)
+
+    SELECT *
+    FROM valid_sems
+
+    UNION
+    
+    SELECT c.course_prefix || ' ' || c.course_number AS course, 0 AS number_of_exams
+    FROM Users u
+    JOIN Semesters s
+    ON u.user_id = s.user_id
+    JOIN Courses c
+    ON c.semester_id = s.semester_id
+    WHERE course NOT IN (SELECT course FROM valid_sems) and s.semester_id = {sem}
+
+    ;
+  """)
+  return execute_query(report_query)
+
+
+### SEM & CLASS
+
+def execute_query(query):
+  return db.session.execute(query).mappings().all()
 
 if __name__ == '__main__':
   app.run(host='0.0.0.0', port=3000, debug=True)
