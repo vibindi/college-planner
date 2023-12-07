@@ -1,7 +1,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import text
 import sqlite3
-from flask import Flask, render_template, request, url_for, flash, redirect
+from flask import Flask, render_template, request, url_for, flash, redirect, jsonify
 from datetime import datetime
 
 app = Flask(__name__)
@@ -125,31 +125,12 @@ def report():
     courses = []
   
     for c in Courses.query.filter_by(semester_id=s.semester_id).all():
-      assignments = []
-      exams = []
-
-      for a in Assignments.query.filter_by(course_id=c.course_id).all():
-        if a.is_completed == 0:
-          assignments.append({
-            'id': a.assignment_id,
-            'name': a.name,
-            'description': a.description
-          })
-
-      for e in Exams.query.filter_by(course_id=c.course_id).all():
-        exams.append({
-          'id': e.exam_id,
-          'name': e.name,
-          'location': e.exam_location
-        })
 
       courses.append({
         'id': c.course_id, 
         'prefix': c.course_prefix, 
         'number': c.course_number, 
         'name': c.course_name,
-        'assignments': assignments,
-        'exams': exams
       })
     
     semesters.append({
